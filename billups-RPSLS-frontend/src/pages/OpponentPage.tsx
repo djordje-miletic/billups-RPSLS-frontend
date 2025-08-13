@@ -48,7 +48,7 @@ export default function OpponentPage() {
 
   const joinGame = async () => {
     const hubConnection = new HubConnectionBuilder()
-      .withUrl(endpoints.gameHub)
+      .withUrl(endpoints.gameHub, { withCredentials: false })
       .withAutomaticReconnect()
       .build();
 
