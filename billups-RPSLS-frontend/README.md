@@ -13,3 +13,5 @@ Docker run:
 
 docker build -t billups-rpsls-fe .
 docker run -p 5173:5173 -v "%cd%:/app" -v /app/node_modules billups-rpsls-fe
+
+Navigate to: http://localhost:5173/Home

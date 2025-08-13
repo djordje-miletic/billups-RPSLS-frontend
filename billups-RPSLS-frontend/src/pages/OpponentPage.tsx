@@ -46,6 +46,13 @@ export default function OpponentPage() {
     setPlayerName(storedName);
   }, []);
 
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      connection?.stop();
+    };
+  }, [connection]);
+
   const joinGame = async () => {
     const hubConnection = new HubConnectionBuilder()
       .withUrl(endpoints.gameHub, { withCredentials: false })
@@ -63,13 +70,8 @@ export default function OpponentPage() {
 
     hubConnection.on("RoundResult", (round: RoundHistory) => {
       setRoundResult(round.result);
-
-      setRoundHistory((prev) => {
-        return [...prev, round].slice(-5);
-      });
-
+      setRoundHistory((prev) => [...prev, round].slice(-5));
       setCurrentMove(null);
-
       setResultsRefresh((prev) => prev + 1);
     });
 
@@ -77,13 +79,38 @@ export default function OpponentPage() {
       setRoundResult("Waiting for opponent's move...");
     });
 
+    // New: Listen for opponent disconnect
+    hubConnection.on("OpponentDisconnected", () => {
+      alert("Your opponent disconnected. Returning to main page.");
+      disconnectHub();
+      navigate("/");
+    });
+
     try {
       await hubConnection.start();
       setConnection(hubConnection);
-      setStatus("Joining game...");
+      setStatus("Connected! Joining game...");
     } catch (err) {
       console.error(err);
       setStatus("Failed to connect");
+    }
+  };
+
+  const disconnectHub = async () => {
+    if (connection) {
+      try {
+        await connection.stop();
+        console.log("Disconnected from GameHub");
+      } catch (err) {
+        console.error("Error disconnecting: ", err);
+      } finally {
+        setConnection(null);
+        setStatus("Disconnected");
+        setRoundResult(null);
+        setChoices([]);
+        setRoundHistory([]);
+        setCurrentMove(null);
+      }
     }
   };
 
@@ -110,18 +137,10 @@ export default function OpponentPage() {
       Player: choiceId,
       PlayerName: playerName,
     });
-
-    setRoundResult("Move sent. Waiting for opponent...");
   };
 
   const returnToMain = () => {
-    connection?.stop();
-    setConnection(null);
-    setChoices([]);
-    setStatus("Not connected");
-    setRoundResult(null);
-    setRoundHistory([]);
-    setCurrentMove(null);
+    disconnectHub();
     navigate("/");
   };
 
@@ -133,99 +152,96 @@ export default function OpponentPage() {
 
   return (
     <Box sx={{ display: "flex", gap: 4, padding: 2, alignItems: "flex-start" }}>
-        <Box sx={{ flex: 1 }}>
-            <Typography variant="h5" sx={{ mb: 2 }}>
-            Playing against the real opponent as {playerName}
-            </Typography>
+      <Box sx={{ flex: 1 }}>
+        <Typography variant="h5" sx={{ mb: 2 }}>
+          Playing against the real opponent as {playerName}
+        </Typography>
 
-            <Box sx={{ display: "flex", gap: 2, mt: 2 }}>
-            <Button
-                variant="outlined"
-                color="secondary"
-                onClick={returnToMain}
-            >
-                Return to Game Page
+        <Box sx={{ display: "flex", gap: 2, mt: 2 }}>
+          <Button variant="outlined" color="secondary" onClick={returnToMain}>
+            Return to Game Page
+          </Button>
+
+          {!connection && (
+            <Button variant="contained" color="primary" onClick={joinGame}>
+              Join Game
             </Button>
+          )}
 
-            {!connection && (
-                <Button
-                variant="contained"
-                color="primary"
-                onClick={joinGame}
-                >
-                Join Game
-                </Button>
-            )}
-            </Box>
+          {connection && (
+            <Button variant="contained" color="error" onClick={disconnectHub}>
+              Disconnect
+            </Button>
+          )}
+        </Box>
 
         <Typography sx={{ mt: 2 }}>{status}</Typography>
-        {roundResult && (
-          <Typography sx={{ mt: 1, color: "green" }}>{roundResult}</Typography>
-        )}
+        {roundResult && <Typography sx={{ mt: 1, color: "green" }}>{roundResult}</Typography>}
 
         {loadingChoices && <CircularProgress sx={{ mt: 2 }} />}
 
         {choices.length > 0 && (
-            <TableContainer component={Paper} sx={{ mt: 2, width: 400 }}>
-                <Table size="small">
-                <TableHead>
-                    <TableRow>
-                    <TableCell>ID</TableCell>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Play</TableCell>
-                    </TableRow>
-                </TableHead>
-                <TableBody>
-                    {choices.map((choice) => (
-                    <TableRow key={choice.id}>
-                        <TableCell>{choice.id}</TableCell>
-                        <TableCell>{choice.name}</TableCell>
-                        <TableCell>
-                        <Button
-                            variant="contained"
-                            size="small"
-                            onClick={() => playChoice(choice.id)}
-                        >
-                            Play
-                        </Button>
-                        </TableCell>
-                    </TableRow>
-                    ))}
-                </TableBody>
-                </Table>
-            </TableContainer>
+          <TableContainer component={Paper} sx={{ mt: 2, width: 400 }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>ID</TableCell>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Play</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {choices.map((choice) => (
+                  <TableRow key={choice.id}>
+                    <TableCell>{choice.id}</TableCell>
+                    <TableCell>{choice.name}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        onClick={() => playChoice(choice.id)}
+                        disabled={!connection || currentMove !== null}
+                      >
+                        Play
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
 
         {roundHistory.length > 0 && (
             <TableContainer component={Paper} sx={{ mt: 2, width: 400 }}>
-                <Typography variant="subtitle1" sx={{ m: 1 }}>
+              <Typography variant="subtitle1" sx={{ m: 1 }}>
                 Last 5 Rounds
-                </Typography>
-                <Table size="small">
+              </Typography>
+              <Table size="small">
                 <TableHead>
-                    <TableRow>
+                  <TableRow>
                     <TableCell>Player Choice</TableCell>
                     <TableCell>Opponent Choice</TableCell>
                     <TableCell>Result</TableCell>
-                    </TableRow>
+                  </TableRow>
                 </TableHead>
                 <TableBody>
-                    {roundHistory.map((round, index) => (
+                  {roundHistory.map((round, index) => (
                     <TableRow key={index}>
-                        <TableCell>{getChoiceName(round.playerChoice)}</TableCell>
-                        <TableCell>{getChoiceName(round.opponentChoice)}</TableCell>
-                        <TableCell>{round.result}</TableCell>
+                      <TableCell>{getChoiceName(round.playerChoice)}</TableCell>
+                      <TableCell>{getChoiceName(round.opponentChoice)}</TableCell>
+                      <TableCell>{round.result}</TableCell>
                     </TableRow>
-                    ))}
+                  ))}
                 </TableBody>
-                </Table>
+              </Table>
             </TableContainer>
-            )}
-        </Box>
+        )}
+      </Box>
 
-        <Box sx={{ width: 400 }}>
-            <ResultsPage refreshTrigger={resultsRefresh} />
-        </Box>
+      <Box sx={{ width: 400 }}>
+        <ResultsPage refreshTrigger={resultsRefresh} />
+      </Box>
     </Box>
   );
 }
