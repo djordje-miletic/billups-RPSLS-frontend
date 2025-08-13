@@ -70,7 +70,6 @@ export default function OpponentPage() {
 
       setCurrentMove(null);
 
-      // Trigger ResultsPage refresh
       setResultsRefresh((prev) => prev + 1);
     });
 

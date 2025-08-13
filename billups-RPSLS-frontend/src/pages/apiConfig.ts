@@ -1,4 +1,4 @@
-const API_BASE_URL = "https://localhost:44348";
+const API_BASE_URL = "http://localhost:8080";
 
 export const endpoints = {
   getChoices: `${API_BASE_URL}/choices`,
